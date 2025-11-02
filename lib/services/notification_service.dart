@@ -5,13 +5,14 @@ import 'package:stomp_dart_client/stomp_frame.dart';
 import 'package:http/http.dart' as http;
 import '../models/notificationapp.dart';
 import '../services/local_notification_service.dart';
-
+import '../utils/constants.dart';
 class NotificationService {
   StompClient? _client;
   void connectWebSocket(int userId, Function(NotificationApp) onNotification) {
     _client = StompClient(
       config: StompConfig.sockJS(
-        url: 'http://10.0.2.2:8080/ws',
+
+        url: AppConstants.wsUrl,
         onConnect: (StompFrame frame) {
           _client!.subscribe(
             destination: '/user/$userId/queue/notifications',
@@ -40,7 +41,7 @@ class NotificationService {
 
   Future<List<NotificationApp>> fetchNotifications(int userId) async {
     final response = await http.get(
-      Uri.parse('http://10.0.2.2:8080/api/notifications/$userId'),
+      Uri.parse('${AppConstants.apiBaseUrl}/notifications/$userId'),
     );
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
