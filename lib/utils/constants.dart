@@ -1,6 +1,6 @@
 class AppConstants {
   // 🌐 Change this single line for your backend base URL
-  static const String backendBaseUrl = "http://10.0.2.2:8080";
+  static const String backendBaseUrl = "https://movieticket-production-6023.up.railway.app";
 
   // 🧭 Optional convenience getters
   static String get apiBaseUrl => "$backendBaseUrl/api";
