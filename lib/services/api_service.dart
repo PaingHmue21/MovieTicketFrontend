@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:test_app/models/moviedetail.dart';
+import 'package:test_app/utils/user_storage.dart';
 import '../models/movieshowdate.dart';
 import '../models/movieshowtime.dart';
 import '../models/movieseat.dart';
@@ -9,6 +10,7 @@ import '../models/ticket.dart';
 import '../models/user.dart';
 import 'dart:io';
 import '../utils/constants.dart';
+
 class ApiService {
   final String baseUrl = "${AppConstants.apiBaseUrl}"; // For Android emulator
 
@@ -57,6 +59,16 @@ class ApiService {
     }
   }
 
+  Future<List<Ticket>> fetchHistoryTickets(int userid) async {
+    final response = await http.get(Uri.parse("$baseUrl/history/$userid"));
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data["tickets"] as List).map((t) => Ticket.fromJson(t)).toList();
+    } else {
+      throw Exception("Failed to fetch tickets");
+    }
+  }
+
   Future<User> updateUserProfile(User user, File? imageFile) async {
     var request = http.MultipartRequest(
       'PUT',
@@ -74,12 +86,14 @@ class ApiService {
     if (response.statusCode == 200) {
       final data = jsonDecode(responseBody);
       if (data['status'] == 'success') {
-        return User.fromJson(data['user']);
+        final updatedUser = User.fromJson(data['user']);
+        await UserStorage.saveUser(updatedUser);
+        return updatedUser;
       } else {
-        throw Exception(data['message']);
+        throw Exception(data['message'] ?? 'Failed to update profile');
       }
     } else {
-      throw Exception("Failed to update profile (${response.statusCode})");
+      throw Exception("Failed to update profile (HTTP ${response.statusCode})");
     }
   }
 

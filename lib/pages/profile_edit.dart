@@ -1,10 +1,12 @@
-import 'dart:convert';
+// import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:test_app/utils/user_storage.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/constants.dart';
+
 class ProfileEditScreen extends StatefulWidget {
   final User user;
   const ProfileEditScreen({super.key, required this.user});
@@ -38,6 +40,8 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
     }
   }
 
+
+
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSaving = true);
@@ -47,11 +51,17 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
         username: _nameController.text.trim(),
         useremail: _emailController.text.trim(),
         phoneno: _phoneController.text.trim(),
-        profile: _profileImage != null
-            ? base64Encode(await _profileImage!.readAsBytes())
-            : widget.user.profile,
+        profile: widget.user.profile, // let backend return the new filename
       );
-      await ApiService().updateUserProfile(updatedUser, _profileImage);
+
+      final newUser = await ApiService().updateUserProfile(
+        updatedUser,
+        _profileImage,
+      );
+
+      // ✅ Save new user locally
+      await UserStorage.saveUser(newUser);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -59,7 +69,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pop(context, updatedUser);
+        Navigator.pop(context, newUser);
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

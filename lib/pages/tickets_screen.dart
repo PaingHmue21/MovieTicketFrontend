@@ -9,10 +9,16 @@ class TicketsScreen extends StatefulWidget {
   final VoidCallback onLogout;
   const TicketsScreen({super.key, required this.user, required this.onLogout});
   @override
-  State<TicketsScreen> createState() => _TicketsScreenState();
+  TicketsScreenState createState() => TicketsScreenState();
 }
 
-class _TicketsScreenState extends State<TicketsScreen> {
+class TicketsScreenState extends State<TicketsScreen> {
+  late Future<List<Ticket>> ticketsFuture;
+
+  void reloadTickets() {
+    ticketsFuture = ApiService().fetchTickets(widget.user.userid);
+    setState(() {});
+  }
   List<Ticket> tickets = [];
   bool loading = true;
   @override
@@ -33,25 +39,12 @@ class _TicketsScreenState extends State<TicketsScreen> {
     }
   }
 
-  // String formatDate(String date, String time) {
-  //   try {
-  //     final dateTime = DateTime.parse("${date}T${time}");
-  //     return "${dateTime.day}/${dateTime.month}/${dateTime.year} "
-  //         "${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}";
-  //   } catch (e) {
-  //     return "$date $time"; // fallback if parsing fails
-  //   }
-  // }
-
   String formatDate(String date, String time) {
     try {
-      // Fix invalid time formats like "22:000:00"
       final cleanTime = time.replaceAll(RegExp(r'[^0-9:]'), '');
-      // If too long, cut to "HH:mm:ss"
       final safeTime = cleanTime.length > 8
           ? cleanTime.substring(0, 8)
           : cleanTime;
-
       final dateTime = DateTime.parse("${date}T${safeTime}");
       return "${dateTime.day.toString().padLeft(2, '0')}/"
           "${dateTime.month.toString().padLeft(2, '0')}/"
@@ -66,7 +59,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
+    if (loading) return const Center(child: CircularProgressIndicator(color: Color.fromARGB(255, 117, 228, 111)));
     if (tickets.isEmpty) return const Center(child: Text("No tickets found."));
     return ListView.builder(
       padding: const EdgeInsets.all(10),
@@ -103,7 +96,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -113,7 +105,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       style: const TextStyle(fontSize: 16, color: Colors.amber),
                     ),
                     Text(
-                      // formatDate(ticket.movieshowtime),
                       formatDate(ticket.movieshowdate, ticket.movieshowtime),
                       style: const TextStyle(fontSize: 14, color: Colors.amber),
                     ),
@@ -124,8 +115,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
                   child: ticket.qrCode != null && ticket.qrCode!.isNotEmpty
                       ? Image.memory(
                           base64Decode(ticket.qrCode!),
-                          width: 150,
-                          height: 150,
+                          width: 120,
+                          height: 120,
                           fit: BoxFit.contain,
                         )
                       : const Text("No QR Code available"),

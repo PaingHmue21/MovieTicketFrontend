@@ -4,17 +4,22 @@ import '../models/notificationapp.dart';
 import '../models/user.dart';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
+import 'package:intl/intl.dart';
+
 class NotificationScreen extends StatefulWidget {
   final User? user;
-  final VoidCallback? onViewed; // callback to update badge
+  final VoidCallback? onViewed;
+
   const NotificationScreen({super.key, this.user, this.onViewed});
+
   @override
-  State<NotificationScreen> createState() => _NotificationPageState();
+  State<NotificationScreen> createState() => _NotificationScreenState();
 }
 
-class _NotificationPageState extends State<NotificationScreen> {
+class _NotificationScreenState extends State<NotificationScreen> {
   final _service = NotificationService();
   List<NotificationApp> _notifications = [];
+  bool loading = true;
 
   @override
   void initState() {
@@ -25,73 +30,126 @@ class _NotificationPageState extends State<NotificationScreen> {
     });
   }
 
+  // Load notifications
   Future<void> loadNotifications() async {
     try {
       final list = await _service.fetchNotifications(widget.user!.userid);
-      setState(() => _notifications = list);
-      await markAllAsRead(); // mark all as read when page opens
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      setState(() {
+        _notifications = list;
+        loading = false;
+      });
+      await markAllAsRead();
     } catch (e) {
-      print("⚠️ Failed to load notifications: $e");
+      print("⚠️ Error loading notifications: $e");
+      setState(() => loading = false);
     }
   }
 
+  // Mark all as read
   Future<void> markAllAsRead() async {
     try {
       final url = Uri.parse(
         '${AppConstants.apiBaseUrl}/mark-read/${widget.user!.userid}',
       );
-      final response = await http.put(url);
-      if (response.statusCode == 200) {
-        setState(() {
-          _notifications = _notifications
-              .map(
-                (n) => NotificationApp(
-                  id: n.id,
-                  userId: n.userId,
-                  title: n.title,
-                  message: n.message,
-                  readStatus: true,
-                  createdAt: n.createdAt,
-                ),
-              )
-              .toList();
-        });
-        widget.onViewed?.call();
-      } else {
-        print("⚠️ Server responded with ${response.statusCode}");
-      }
+      await http.put(url);
+      setState(() {
+        for (var n in _notifications) {
+          n.readStatus = true;
+        }
+      });
+      widget.onViewed?.call();
     } catch (e) {
-      print("⚠️ Failed to mark notifications as read: $e");
+      print("⚠️ Failed to mark as read: $e");
     }
   }
 
-  Future<void> markAsRead(NotificationApp n) async {
-    if (!n.readStatus) {
-      try {
-        final url = Uri.parse('${AppConstants.apiBaseUrl}/mark-read/${n.userId}');
-        final response = await http.put(url);
-        if (response.statusCode == 200) {
-          setState(() {
-            final index = _notifications.indexWhere((x) => x.id == n.id);
-            if (index != -1) {
-              _notifications[index] = NotificationApp(
-                id: n.id,
-                userId: n.userId,
-                title: n.title,
-                message: n.message,
-                readStatus: true,
-                createdAt: n.createdAt,
-              );
-            }
-          });
-          widget.onViewed?.call();
-        } else {
-          print("⚠️ Server responded with ${response.statusCode}");
-        }
-      } catch (e) {
-        print("⚠️ Failed to mark notifications as read: $e");
+  // Delete a single notification
+  Future<void> deleteNotification(int id) async {
+    try {
+      final url = Uri.parse('${AppConstants.apiBaseUrl}/deletenoti/$id');
+      final response = await http.delete(url);
+      if (response.statusCode == 200) {
+        setState(() {
+          _notifications.removeWhere((n) => n.id == id);
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Notification deleted")));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed: ${response.statusCode}")),
+        );
       }
+    } catch (e) {
+      print("⚠️ Delete single notification error: $e");
     }
+  }
+
+  // Delete all notifications
+  Future<void> deleteAllNotifications() async {
+    try {
+      final url = Uri.parse(
+        '${AppConstants.apiBaseUrl}/deleteallnoti/${widget.user!.userid}',
+      );
+      final response = await http.delete(url);
+      if (response.statusCode == 200) {
+        setState(() => _notifications.clear());
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("All notifications deleted")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed: ${response.statusCode}")),
+        );
+      }
+    } catch (e) {
+      print("⚠️ Delete all notifications error: $e");
+    }
+  }
+
+  // Confirm delete all
+  Future<void> confirmDeleteAll() async {
+    if (_notifications.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No notifications to delete")),
+      );
+      return;
+    }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text(
+          "Delete All Notifications",
+          style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          "Are you sure you want to delete all notifications?",
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text(
+              "Delete All",
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) await deleteAllNotifications();
   }
 
   @override
@@ -104,7 +162,68 @@ class _NotificationPageState extends State<NotificationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: _notifications.isEmpty
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF1E1E1E),
+        elevation: 0,
+        title: Row(
+          children: [
+            const Icon(
+              Icons.notifications_active,
+              color: Colors.amber,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              "Notifications",
+              style: TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const Spacer(),
+            if (_notifications.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.amber,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "${_notifications.length}",
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            const SizedBox(width: 100),
+            TextButton.icon(
+              onPressed: confirmDeleteAll, // uses confirmation dialog
+              
+              label: const Text(
+                "Delete All",
+                style: TextStyle(
+                  color: Color.fromARGB(255, 52, 242, 18),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: loading
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: Color.fromARGB(255, 73, 234, 29),
+              ),
+            )
+          : _notifications.isEmpty
           ? const Center(
               child: Text(
                 "No notifications yet",
@@ -117,7 +236,51 @@ class _NotificationPageState extends State<NotificationScreen> {
               itemBuilder: (context, i) {
                 final n = _notifications[i];
                 return GestureDetector(
-                  onTap: () => markAsRead(n), // mark individual notification
+                  onTap: () {},
+                  onLongPress: () async {
+                    final bool? confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        backgroundColor: const Color(0xFF1E1E1E),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        title: const Text(
+                          "Delete Notification",
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        content: const Text(
+                          "Are you sure you want to delete this notification?",
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text(
+                              "Cancel",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text(
+                              "Delete",
+                              style: TextStyle(
+                                color: Colors.redAccent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirm == true) {
+                      await deleteNotification(n.id);
+                    }
+                  },
                   child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 6),
                     decoration: BoxDecoration(
@@ -140,7 +303,6 @@ class _NotificationPageState extends State<NotificationScreen> {
                           fontWeight: n.readStatus
                               ? FontWeight.normal
                               : FontWeight.bold,
-                          fontSize: 16,
                         ),
                       ),
                       subtitle: Text(
@@ -148,7 +310,7 @@ class _NotificationPageState extends State<NotificationScreen> {
                         style: const TextStyle(color: Colors.white70),
                       ),
                       trailing: Text(
-                        "${n.createdAt.hour.toString().padLeft(2, '0')}:${n.createdAt.minute.toString().padLeft(2, '0')}",
+                        DateFormat('dd MMM yyyy, HH:mm').format(n.createdAt),
                         style: const TextStyle(color: Colors.grey),
                       ),
                     ),

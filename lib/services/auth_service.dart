@@ -5,10 +5,10 @@ import 'package:test_app/models/changepassword.dart';
 import 'package:test_app/pages/home_screen.dart';
 import '../models/user.dart';
 import '../utils/user_storage.dart';
+import '../utils/constants.dart';
 
 class AuthService {
-  static const String baseUrl = "http://10.0.2.2:8080/api";
-
+  static final String baseUrl = AppConstants.apiBaseUrl;
   Future<User> login(String email, String password) async {
     final response = await http.post(
       Uri.parse("$baseUrl/login"),
@@ -87,30 +87,31 @@ class AuthService {
   }
 
   static Future<void> changePassword(
-  BuildContext context,
-  ChangePassword updatedUser,
-) async {
-  final response = await http.post(
-    Uri.parse("$baseUrl/change-password"),
-    headers: {"Content-Type": "application/json"},
-    body: jsonEncode(updatedUser.toJson()),
-  );
-  if (response.statusCode == 200) {
-    await UserStorage.clearUser();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("✅ Password changed successfully. Please log in again."),
-        backgroundColor: Colors.green,
-      ),
+    BuildContext context,
+    ChangePassword updatedUser,
+  ) async {
+    final response = await http.post(
+      Uri.parse("$baseUrl/change-password"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(updatedUser.toJson()),
     );
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-      (route) => false, // remove all previous routes
-    );
-  } else {
-    throw Exception("Password change failed: ${response.body}");
+    if (response.statusCode == 200) {
+      await UserStorage.clearUser();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "✅ Password changed successfully. Please log in again.",
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false, // remove all previous routes
+      );
+    } else {
+      throw Exception("Password change failed: ${response.body}");
+    }
   }
-}
-
 }
