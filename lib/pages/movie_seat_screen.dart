@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:test_app/pages/login_screen.dart';
 import '../models/movieseat.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
@@ -22,6 +23,7 @@ class MovieSeatScreen extends StatefulWidget {
 }
 
 class _MovieSeatScreenState extends State<MovieSeatScreen> {
+  User? loggedInUser;
   late Future<MovieSeat> movieSeat;
   List<int> selectedSeats = [];
   String paymentType = '';
@@ -36,6 +38,7 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
       widget.showtime,
       widget.showdate,
     );
+     loggedInUser = widget.user;
   }
 
   void toggleSeat(
@@ -72,7 +75,6 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
       "userid": widget.user?.userid,
       "selectedSeats": selectedSeats,
       "paymentType": paymentType,
-      // Use widget.showdate and widget.showtime
       "showdate": widget.showdate.showDate,
       "showtime": widget.showtime.showTime,
     };
@@ -137,7 +139,6 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                       color: Colors.amber, // gold color
                     ),
                   ),
-
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -148,7 +149,7 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                       const SizedBox(width: 12),
                       _buildLegendBox(
                         const Color.fromARGB(255, 7, 226, 14),
-                        "Selected", 
+                        "Selected",
                       ),
                       const SizedBox(width: 12),
                       _buildLegendBox(
@@ -179,7 +180,6 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 8),
                           GridView.builder(
                             shrinkWrap: true,
@@ -222,7 +222,12 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                                       Icons.event_seat,
                                       size: 35,
                                       color: isOccupied
-                                          ? const Color.fromARGB(255, 238, 28, 28)
+                                          ? const Color.fromARGB(
+                                              255,
+                                              238,
+                                              28,
+                                              28,
+                                            )
                                           : isSelected
                                           ? const Color.fromARGB(
                                               255,
@@ -299,9 +304,7 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                   ] else ...[
                     const Text("No seat information available"),
                   ],
-
                   const SizedBox(height: 16),
-
                   if (selectedSeats.isNotEmpty) ...[
                     const Text(
                       "Selected Seats:",
@@ -325,7 +328,6 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-
                   Text(
                     "Total Price: ${totalPrice.toStringAsFixed(2)} MMK",
                     style: const TextStyle(
@@ -378,7 +380,32 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                   ElevatedButton(
                     onPressed: selectedSeats.isEmpty || paymentType.isEmpty
                         ? null
-                        : () => placeOrder(movie),
+                        : () async {
+                            if (loggedInUser == null) {
+                              final user = await Navigator.push<User?>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AuthScreen(
+                                    onLogin: (user) {
+                                      Navigator.pop(
+                                        context,
+                                        user,
+                                      ); // return user to MovieSeatScreen
+                                    },
+                                  ),
+                                ),
+                              );
+
+                              if (user != null) {
+                                setState(() => loggedInUser = user);
+                                await placeOrder(
+                                  movie,
+                                ); // continue buying after login
+                              }
+                            } else {
+                              await placeOrder(movie);
+                            }
+                          },
                     child: const Text("Buy"),
                   ),
                 ],
@@ -390,3 +417,12 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
     );
   }
 }
+
+
+
+                  // ElevatedButton(
+                  //   onPressed: selectedSeats.isEmpty || paymentType.isEmpty
+                  //       ? null
+                  //       : () => placeOrder(movie),
+                  //   child: const Text("Buy",),
+                  // ),

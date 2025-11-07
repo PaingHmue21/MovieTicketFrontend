@@ -4,9 +4,7 @@ import '../models/user.dart';
 import '../utils/user_storage.dart';
 class AuthScreen extends StatefulWidget {
   final Function(User user) onLogin; // ✅ take a User instead of VoidCallback
-
   const AuthScreen({super.key, required this.onLogin});
-
   @override
   State<AuthScreen> createState() => _AuthScreenState();
 }
