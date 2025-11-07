@@ -5,32 +5,32 @@ import '../models/user.dart';
 import 'package:http/http.dart' as http;
 import '../utils/constants.dart';
 import 'package:intl/intl.dart';
-
 class NotificationScreen extends StatefulWidget {
   final User? user;
   final VoidCallback? onViewed;
-
-  const NotificationScreen({super.key, this.user, this.onViewed});
-
+  final NotificationService notificationService; // ✅ add this
+  const NotificationScreen({
+    super.key,
+    this.user,
+    this.onViewed,
+    required this.notificationService, // ✅ receive service
+  });
   @override
   State<NotificationScreen> createState() => _NotificationScreenState();
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  final _service = NotificationService();
   List<NotificationApp> _notifications = [];
   bool loading = true;
+  late NotificationService _service;
 
   @override
   void initState() {
     super.initState();
+    _service = widget.notificationService;
     loadNotifications();
-    _service.connectWebSocket(widget.user!.userid, (n) {
-      setState(() => _notifications.insert(0, n));
-    });
   }
 
-  // Load notifications
   Future<void> loadNotifications() async {
     try {
       final list = await _service.fetchNotifications(widget.user!.userid);
@@ -46,7 +46,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // Mark all as read
   Future<void> markAllAsRead() async {
     try {
       final url = Uri.parse(
@@ -64,7 +63,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // Delete a single notification
   Future<void> deleteNotification(int id) async {
     try {
       final url = Uri.parse('${AppConstants.apiBaseUrl}/deletenoti/$id');
@@ -86,7 +84,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
     }
   }
 
-  // Delete all notifications
   Future<void> deleteAllNotifications() async {
     try {
       final url = Uri.parse(
@@ -116,7 +113,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
       return;
     }
-
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -148,14 +144,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
     );
-
     if (confirm == true) await deleteAllNotifications();
-  }
-
-  @override
-  void dispose() {
-    _service.disconnect();
-    super.dispose();
   }
 
   @override
@@ -204,7 +193,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
             const SizedBox(width: 100),
             TextButton.icon(
               onPressed: confirmDeleteAll, // uses confirmation dialog
-              
+
               label: const Text(
                 "Delete All",
                 style: TextStyle(

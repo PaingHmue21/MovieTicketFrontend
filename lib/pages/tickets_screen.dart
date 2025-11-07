@@ -56,7 +56,6 @@ class TicketsScreenState extends State<TicketsScreen> {
       return "$date $time"; // fallback to raw display
     }
   }
-
   @override
   Widget build(BuildContext context) {
     if (loading) return const Center(child: CircularProgressIndicator(color: Color.fromARGB(255, 117, 228, 111)));

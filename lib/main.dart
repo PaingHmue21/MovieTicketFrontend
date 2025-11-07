@@ -1,6 +1,7 @@
 import 'dart:async'; // For StreamSubscription
 import 'package:connectivity_plus/connectivity_plus.dart'; // For internet checking
 import 'package:flutter/material.dart';
+import 'package:test_app/services/WebSocketService.dart';
 import 'pages/home_screen.dart';
 import 'pages/movies_screen.dart';
 import 'pages/profile_screen.dart';
@@ -40,123 +41,127 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
   User? loggedInUser;
-  bool get isLoggedIn => loggedInUser != null;
+  int _selectedIndex = 0;
   int _unreadNotificationCount = 0;
+  late WebSocketService _webSocketService;
   NotificationService? _notificationService;
   final Connectivity _connectivity = Connectivity();
   StreamSubscription<ConnectivityResult>? _connectivitySubscription;
   bool _isDialogShowing = false;
+  bool get isLoggedIn => loggedInUser != null;
 
   @override
   void initState() {
     super.initState();
-    _checkInternetConnection();
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
       _updateConnectionStatus,
     );
-    _checkLoginStatus();
+    _initLoginCheck();
   }
 
-  Future<void> _checkInternetConnection() async {
-    final result = await _connectivity.checkConnectivity();
-    _updateConnectionStatus(result);
+  Future<void> _initLoginCheck() async {
+    loggedInUser = await UserStorage.getUser();
+    setState(() {});
+    if (loggedInUser != null) {
+      final result = await _connectivity.checkConnectivity();
+      if (result != ConnectivityResult.none) {
+        _startWebSocketConnection(loggedInUser!.userid);
+        _loadUnreadCount(loggedInUser!.userid);
+      }
+    }
+  }
+
+  void _startWebSocketConnection(int userId) {
+    _webSocketService = WebSocketService();
+    _notificationService = NotificationService(_webSocketService);
+    _webSocketService.connect(
+      userId: userId,
+      onConnected: (_) {
+        print("✅ WebSocket Connected");
+        Future.delayed(const Duration(seconds: 1), () {
+          _notificationService!.subscribeToNotifications(userId, (
+            notification,
+          ) {
+            print("🔔 Local notification triggered");
+            setState(() => _unreadNotificationCount++);
+            LocalNotificationService.showNotification(
+              title: notification.title,
+              body: notification.message,
+            );
+          });
+        });
+      },
+      onError: (error) {
+        print("❌ WebSocket Error: $error");
+      },
+      onDisconnect: (_) {
+        print("⚠️ WebSocket Disconnected");
+        if (_webSocketService.shouldAutoReconnect && loggedInUser != null) {
+          Future.delayed(const Duration(seconds: 5), () {
+            print("♻️ Reconnecting WebSocket...");
+            _startWebSocketConnection(loggedInUser!.userid);
+          });
+        }
+      },
+    );
+  }
+
+  Future<void> _loadUnreadCount(int userId) async {
+    final notifications = await _notificationService!.fetchNotifications(
+      userId,
+    );
+    setState(
+      () => _unreadNotificationCount = notifications
+          .where((n) => !n.readStatus)
+          .length,
+    );
   }
 
   void _updateConnectionStatus(ConnectivityResult result) {
     if (result == ConnectivityResult.none) {
-      // if (!_isDialogShowing) {
-      //   _showNoInternetDialog();
-      // }
       _showNoInternetDialog();
-      _notificationService?.disconnect();
+      _webSocketService.disconnect(manual: false);
     } else {
       if (_isDialogShowing) {
-        try {
-          Navigator.of(context, rootNavigator: true).pop();
-        } catch (_) {}
+        Navigator.pop(context);
         _isDialogShowing = false;
       }
-      if (loggedInUser != null && _notificationService == null) {
-        _startNotificationListener(loggedInUser!.userid);
+      if (loggedInUser != null && !_webSocketService.isConnected) {
+        _startWebSocketConnection(loggedInUser!.userid);
       }
     }
   }
 
   void _showNoInternetDialog() {
+    if (_isDialogShowing) return;
     _isDialogShowing = true;
     showDialog(
       context: context,
-      barrierDismissible: false, // prevent dismiss by tapping outside
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false,
-        child: AlertDialog(
-          title: const Text('No Internet Connection'),
-          content: const Text(
-            'Please check your Wi-Fi or mobile data connection.',
+      builder: (_) => AlertDialog(
+        title: const Text("No Internet"),
+        content: const Text("Check your connection and try again."),
+        actions: [
+          TextButton(
+            child: const Text("Retry"),
+            onPressed: () async {
+              final result = await _connectivity.checkConnectivity();
+              if (result != ConnectivityResult.none) {
+                Navigator.pop(context);
+                _isDialogShowing = false;
+              }
+            },
           ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                final result = await _connectivity.checkConnectivity();
-                if (result != ConnectivityResult.none) {
-                  if (_isDialogShowing) {
-                    try {
-                      Navigator.of(context, rootNavigator: true).pop();
-                    } catch (_) {}
-                    _isDialogShowing = false;
-                  }
-                }
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  Future<void> _checkLoginStatus() async {
-    final user = await UserStorage.getUser();
-    setState(() {
-      loggedInUser = user;
-    });
-    if (user != null) {
-      _startNotificationListener(user.userid);
-      _loadUnreadCount(user.userid);
-    }
-  }
-
-  void _startNotificationListener(int userId) async {
-    final connectivityResult = await _connectivity.checkConnectivity();
-    if (connectivityResult != ConnectivityResult.none) {
-      _notificationService = NotificationService();
-      _notificationService!.connectWebSocket(userId, (notification) {
-        setState(() {
-          _unreadNotificationCount++;
-        });
-      });
-    } else {
-      if (!_isDialogShowing) {
-        _showNoInternetDialog();
-      }
-    }
-  }
-
-  void _loadUnreadCount(int userId) async {
-    try {
-      final notifications = await _notificationService!.fetchNotifications(
-        userId,
-      );
-      final unread = notifications.where((n) => !n.readStatus).length;
-      print(notifications);
-      setState(() {
-        _unreadNotificationCount = unread;
-      });
-    } catch (e) {
-      print("⚠️ Failed to load unread notifications: $e");
-    }
+  @override
+  void dispose() {
+    _webSocketService.disconnect();
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 
   void _onLogin(User user) async {
@@ -164,12 +169,10 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       loggedInUser = user;
     });
-    _startNotificationListener(user.userid);
   }
 
   void _onLogout() async {
     await UserStorage.clearUser();
-    _notificationService?.disconnect();
     setState(() {
       loggedInUser = null;
       _unreadNotificationCount = 0;
@@ -180,12 +183,6 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  @override
-  void dispose() {
-    _connectivitySubscription?.cancel();
-    super.dispose();
   }
 
   @override
@@ -223,6 +220,8 @@ class _HomePageState extends State<HomePage> {
                 onViewed: () {
                   setState(() => _unreadNotificationCount = 0);
                 },
+                notificationService:
+                    _notificationService!, // ✅ pass connected service
               )
             : const Center(
                 child: Text(
@@ -239,7 +238,6 @@ class _HomePageState extends State<HomePage> {
                 ),
               );
         break;
-
       case 4:
         currentPage = isLoggedIn
             ? ProfileScreen(user: loggedInUser!, onLogout: _onLogout)
