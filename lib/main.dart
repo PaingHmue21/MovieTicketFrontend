@@ -12,10 +12,20 @@ import 'models/user.dart';
 import 'utils/user_storage.dart';
 import 'services/local_notification_service.dart';
 import 'services/notification_service.dart';
+import 'dart:io';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LocalNotificationService.initialize(); // initialize once
+   if (Platform.isAndroid) {
+    final android =
+        LocalNotificationService.notificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    await android?.requestNotificationsPermission();
+  }
+  print("🔔 Local Notification Initialized");
   runApp(const MyApp());
 }
 
@@ -44,8 +54,6 @@ class _HomePageState extends State<HomePage> {
   User? loggedInUser;
   int _selectedIndex = 0;
   int _unreadNotificationCount = 0;
-  // late WebSocketService _webSocketService;
-  // NotificationService? _notificationService;
   WebSocketService? _webSocketService;
   NotificationService? _notificationService;
   final Connectivity _connectivity = Connectivity();
@@ -87,6 +95,9 @@ class _HomePageState extends State<HomePage> {
       onConnected: (_) {
         print("✅ WebSocket Connected");
         _notificationService!.subscribeToNotifications(userId, (notification) {
+          print("📩 WebSocket notification received!");
+          print("➡️ Title: ${notification.title}");
+          print("➡️ Message: ${notification.message}");
           setState(() => _unreadNotificationCount++);
           LocalNotificationService.showNotification(
             title: notification.title,
@@ -116,66 +127,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // void _startWebSocketConnection(int userId) {
-  //   _webSocketService = WebSocketService();
-  //   _notificationService = NotificationService(_webSocketService);
-  //   _webSocketService.connect(
-  //     userId: userId,
-  //     onConnected: (_) {
-  //       print("✅ WebSocket Connected");
-  //       Future.delayed(const Duration(seconds: 1), () {
-  //         _notificationService!.subscribeToNotifications(userId, (
-  //           notification,
-  //         ) {
-  //           print("🔔 Local notification triggered");
-  //           setState(() => _unreadNotificationCount++);
-  //           LocalNotificationService.showNotification(
-  //             title: notification.title,
-  //             body: notification.message,
-  //           );
-  //         });
-  //       });
-  //     },
-  //     onError: (error) {
-  //       print("❌ WebSocket Error: $error");
-  //     },
-  //     onDisconnect: (_) {
-  //       print("⚠️ WebSocket Disconnected");
-  //       if (_webSocketService.shouldAutoReconnect && loggedInUser != null) {
-  //         Future.delayed(const Duration(seconds: 5), () {
-  //           print("♻️ Reconnecting WebSocket...");
-  //           _startWebSocketConnection(loggedInUser!.userid);
-  //         });
-  //       }
-  //     },
-  //   );
-  // }
-
-  // Future<void> _loadUnreadCount(int userId) async {
-  //   final notifications = await _notificationService!.fetchNotifications(
-  //     userId,
-  //   );
-  //   setState(
-  //     () => _unreadNotificationCount = notifications
-  //         .where((n) => !n.readStatus)
-  //         .length,
-  //   );
-  // }
-
-  // void _updateConnectionStatus(ConnectivityResult result) {
-  //   if (result == ConnectivityResult.none) {
-  //     _showNoInternetDialog();
-  //     _webSocketService.disconnect(manual: false);
-  //   } else {
-  //     if (_isDialogShowing) {
-  //       Navigator.pop(context);
-  //       _isDialogShowing = false;
-  //     }
-  //     if (loggedInUser != null && !_webSocketService.isConnected) {
-  //       _startWebSocketConnection(loggedInUser!.userid);
-  //     }
-  //   }
-  // }
   void _updateConnectionStatus(ConnectivityResult result) async {
     if (result == ConnectivityResult.none) {
       print("❌ No Internet");

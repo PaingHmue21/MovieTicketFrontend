@@ -38,7 +38,7 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
       widget.showtime,
       widget.showdate,
     );
-     loggedInUser = widget.user;
+    loggedInUser = widget.user;
   }
 
   void toggleSeat(
@@ -72,7 +72,7 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
   Future<void> placeOrder(MovieSeat movie) async {
     final payload = {
       "movieid": movie.movieid,
-      "userid": widget.user?.userid,
+      "userid": loggedInUser?.userid,
       "selectedSeats": selectedSeats,
       "paymentType": paymentType,
       "showdate": widget.showdate.showDate,
@@ -385,22 +385,13 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
                               final user = await Navigator.push<User?>(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => AuthScreen(
-                                    onLogin: (user) {
-                                      Navigator.pop(
-                                        context,
-                                        user,
-                                      ); // return user to MovieSeatScreen
-                                    },
-                                  ),
+                                  builder: (_) =>
+                                      AuthScreen(onLogin: (user) {}),
                                 ),
                               );
-
                               if (user != null) {
                                 setState(() => loggedInUser = user);
-                                await placeOrder(
-                                  movie,
-                                ); // continue buying after login
+                                await placeOrder(movie); // continue buying
                               }
                             } else {
                               await placeOrder(movie);
@@ -417,12 +408,3 @@ class _MovieSeatScreenState extends State<MovieSeatScreen> {
     );
   }
 }
-
-
-
-                  // ElevatedButton(
-                  //   onPressed: selectedSeats.isEmpty || paymentType.isEmpty
-                  //       ? null
-                  //       : () => placeOrder(movie),
-                  //   child: const Text("Buy",),
-                  // ),

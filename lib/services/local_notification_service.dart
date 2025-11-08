@@ -1,25 +1,28 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
 class LocalNotificationService {
-  static final FlutterLocalNotificationsPlugin _notificationsPlugin =
+  static final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
   static Future<void> initialize() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
+
     const InitializationSettings initializationSettings =
         InitializationSettings(android: initializationSettingsAndroid);
-    await _notificationsPlugin.initialize(initializationSettings);
-    // Create channel (important!)
+
+    await notificationsPlugin.initialize(initializationSettings);
+
+    // ✅ Create notification channel (Required for Android 8+)
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'movie_channel_id', // must match the one used in notification
+      'movie_channel_id',
       'Movie Notifications',
       description: 'Notification channel for movie updates',
       importance: Importance.max,
     );
-    await _notificationsPlugin
+
+    await notificationsPlugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
   }
 
@@ -27,25 +30,25 @@ class LocalNotificationService {
     required String title,
     required String body,
   }) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+    const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          'movie_channel_id', // must be unique
-          'Movie Notifications',
-          channelDescription: 'Notification channel for movie updates',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-        );
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
+      'movie_channel_id',
+      'Movie Notifications',
+      channelDescription: 'Notification channel for movie updates',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
     );
-    await _notificationsPlugin.show(
-      0, // notification id
+
+    const NotificationDetails notificationDetails =
+        NotificationDetails(android: androidDetails);
+
+    await notificationsPlugin.show(
+      DateTime.now().millisecondsSinceEpoch.remainder(100000), // unique id
       title,
       body,
-      platformChannelSpecifics,
-      payload: 'movie_notification', // optional
+      notificationDetails,
     );
   }
 }

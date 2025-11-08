@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:test_app/main.dart';
 import '../services/auth_service.dart'; // import your AuthService
 import '../models/user.dart';
 import '../utils/user_storage.dart';
+
 class AuthScreen extends StatefulWidget {
   final Function(User user) onLogin; // ✅ take a User instead of VoidCallback
   const AuthScreen({super.key, required this.onLogin});
@@ -29,17 +31,22 @@ class _AuthScreenState extends State<AuthScreen> {
 
   void _showForgotPasswordDialog() => setState(() => showForgotPassword = true);
 
-  // Login using API
   Future<void> loginProcess() async {
+    setState(() => isLoading = true);
     try {
       final user = await authService.login(
         loginEmailController.text,
         loginPasswordController.text,
       );
-
-      await UserStorage.saveUser(user); // ✅ Save to local storage
-
+      await UserStorage.saveUser(user);
+      //widget.onLogin(user); // send user to HomePage
+      // Navigator.pop(context, user);
       widget.onLogin(user);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Login Successful ✅")));
@@ -47,6 +54,8 @@ class _AuthScreenState extends State<AuthScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -64,7 +73,18 @@ class _AuthScreenState extends State<AuthScreen> {
           content: Text(result['message'] ?? "Registered Successfully 🎉"),
         ),
       );
-      setState(() => isSignupActive = false); // switch to login after success
+      final user = await authService.login(
+        signupEmailController.text,
+        signupPasswordController.text,
+      );
+      await UserStorage.saveUser(user);
+      // widget.onLogin(user); // ✅ Send to HomePage & mark logged in
+      widget.onLogin(user);
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
     } catch (e) {
       ScaffoldMessenger.of(
         context,
